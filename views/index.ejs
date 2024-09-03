@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/styles.css">
+    <title>Chat Virtual Assistant</title>
+</head>
+<body>
+    <div id="chat-container">
+        <div id="chat-box"></div>
+        <div id="service-buttons" class="hidden"></div>
+        <div id="date-picker-container" class="hidden">
+            <label for="date-picker">Select a date:</label>
+            <input type="date" id="date-picker">
+        </div>
+        <div id="time-slot-container" class="hidden">
+            <label for="time-slot-select">Select a time slot:</label>
+            <select id="time-slot-select"></select>
+        </div>
+        <div id="input-container">
+            <input type="text" id="user-input" placeholder="Type your message...">
+            <button id="send-btn">Send</button>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const chatBox = document.getElementById('chat-box');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const serviceButtons = document.getElementById('service-buttons');
+        const datePickerContainer = document.getElementById('date-picker-container');
+        const timeSlotContainer = document.getElementById('time-slot-container');
+        const timeSlotSelect = document.getElementById('time-slot-select');
+        const datePicker = document.getElementById('date-picker');
+
+        sendBtn.addEventListener('click', () => {
+            const message = userInput.value;
+            if (message) {
+                appendMessage('user', message);
+                socket.emit('clientMessage', message);
+                userInput.value = '';
+                chatBox.scrollTop = chatBox.scrollHeight; // Auto-scroll to bottom
+            }
+        });
+
+        socket.on('assistantReply', (message) => {
+            appendMessage('assistant', message);
+            if (message === 'Hello! What service would you like to book?' || message.includes('Which service would you like to book?')) {
+                displayServiceButtons(); // Automatically display service buttons
+            } else if (message === 'Great choice! What date would you like to book?') {
+                displayDatePicker(); // Show the date picker
+            } else if (message === 'What time slot would you prefer?') {
+                displayTimeSlotSelect(); // Show the time slot selector
+            } else if (message.includes('successfully booked your appointment for')) {
+                // Hide date picker and time slot select if booking is confirmed
+                datePickerContainer.classList.add('hidden');
+                timeSlotContainer.classList.add('hidden');
+            }
+            chatBox.scrollTop = chatBox.scrollHeight; // Auto-scroll to bottom
+        });
+
+        socket.on('serviceSelected', (service) => {
+            appendMessage('user', service);
+            socket.emit('clientMessage', service); // Send service selection to server
+        });
+
+        socket.on('timeSlots', (slots) => {
+            timeSlotSelect.innerHTML = ''; // Clear existing options
+            slots.forEach(slot => {
+                const option = document.createElement('option');
+                option.value = slot;
+                option.textContent = slot;
+                timeSlotSelect.appendChild(option);
+            });
+            timeSlotContainer.classList.remove('hidden'); // Show time slot container
+        });
+
+        datePicker.addEventListener('change', () => {
+            const selectedDate = datePicker.value;
+            if (selectedDate) {
+                appendMessage('user', `Selected date: ${selectedDate}`);
+                socket.emit('dateSelected', selectedDate); // Send selected date to server
+                datePickerContainer.classList.add('hidden'); // Hide date picker
+            }
+        });
+
+        timeSlotSelect.addEventListener('change', () => {
+            const selectedTimeSlot = timeSlotSelect.value;
+            if (selectedTimeSlot) {
+                appendMessage('user', `Selected time slot: ${selectedTimeSlot}`);
+                socket.emit('timeSlotSelected', selectedTimeSlot); // Send selected time slot to server
+                timeSlotContainer.classList.add('hidden'); // Hide time slot selector
+            }
+        });
+
+        function appendMessage(sender, message) {
+            const msgDiv = document.createElement('div');
+            msgDiv.classList.add('message');
+            msgDiv.classList.add(sender);
+            msgDiv.textContent = message;
+            chatBox.appendChild(msgDiv);
+        }
+
+        function displayServiceButtons() {
+            console.log('Displaying service buttons'); // Debugging
+            const services = [
+                { value: 'Shapeup-30', text: 'Shapeup (30 minutes)' },
+                { value: 'MensHaircut-45', text: "Men's Haircut (45 minutes)" },
+                { value: 'HaircutAndShampoo-60', text: 'Haircut and Shampoo (60 minutes)' },
+                { value: 'HaircutAndColor-90', text: 'Haircut and Color (90 minutes)' },
+                { value: 'LaceTopper-150', text: 'Lace Topper (150 minutes)' },
+                { value: 'WomansHaircut-45', text: "Woman's Haircut (45 minutes)" },
+                { value: 'BeardTrim-30', text: 'Beard Trim (30 minutes)' }
+            ];
+
+            serviceButtons.innerHTML = ''; // Clear any existing buttons
+            services.forEach(service => {
+                console.log('Creating button for service:', service.text); // Debugging
+                const button = document.createElement('button');
+                button.textContent = service.text;
+                button.classList.add('service-button');
+                button.dataset.value = service.value;
+                button.addEventListener('click', () => {
+                    appendMessage('user', button.textContent);
+                    socket.emit('serviceSelected', button.dataset.value);
+                    serviceButtons.innerHTML = ''; // Hide service buttons
+                });
+                serviceButtons.appendChild(button);
+            });
+            serviceButtons.classList.remove('hidden');
+        }
+
+        function displayDatePicker() {
+            console.log('Displaying date picker'); // Debugging
+            datePickerContainer.classList.remove('hidden');
+            chatBox.appendChild(datePickerContainer); // Ensure the date picker is in the chat flow
+        }
+
+        function displayTimeSlotSelect() {
+            console.log('Displaying time slot selector'); // Debugging
+            timeSlotContainer.classList.remove('hidden');
+            chatBox.appendChild(timeSlotContainer); // Ensure the time slot select is in the chat flow
+        }
+    </script>
+</body>
+</html>
